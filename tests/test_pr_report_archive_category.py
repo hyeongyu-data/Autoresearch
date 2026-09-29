@@ -27,6 +27,7 @@ def _matches_category(entry: dict, category: str) -> bool:
 
 def test_all_category_matches_every_entry():
     assert _matches_category({"category": "application"}, "all")
+    assert _matches_category({"category": "upstream_application"}, "all")
     assert _matches_category({"category": "airflow"}, "all")
 
 
@@ -35,3 +36,8 @@ def test_specific_category_matches_only_itself():
     assert not _matches_category({"category": "airflow"}, "application")
     assert _matches_category({"category": "airflow"}, "airflow")
     assert not _matches_category({"category": "application"}, "airflow")
+
+
+def test_upstream_application_is_separate_from_fork_application():
+    assert _matches_category({"category": "upstream_application"}, "upstream_application")
+    assert not _matches_category({"category": "upstream_application"}, "application")
