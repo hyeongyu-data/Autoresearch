@@ -47,6 +47,8 @@ class EventLog(BaseModel):
     user_id: str
     event_type: Literal["impression", "click", "view", "like"]
     video_id: str
+    # 노출 묶음 식별자. 기존 파티션과 하위 호환되도록 optional이다.
+    slate_id: str | None = None
     watch_time_sec: int | None = None
     rank: int | None = None
     source: Literal["historical", "online_simulated"] = SOURCE_HISTORICAL
@@ -80,6 +82,7 @@ class EventLog(BaseModel):
             "user_id": self.user_id,
             "event_type": self.event_type,
             "video_id": self.video_id,
+            "slate_id": self.slate_id,
             "watch_time_sec": self.watch_time_sec,
             "rank": self.rank,
             "source": self.source,
@@ -100,6 +103,8 @@ class ImpressionDraft(BaseModel):
 
     user_id: str
     video_id: str
+    # 같은 후보 묶음에서 생성된 draft는 같은 값을 공유한다.
+    slate_id: str | None = None
     click_propensity: float = Field(ge=0.0, le=1.0)
     watch_fraction: float = Field(ge=0.0, le=1.0)
     would_like: bool

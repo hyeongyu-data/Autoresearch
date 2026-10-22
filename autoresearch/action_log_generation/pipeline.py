@@ -11,6 +11,7 @@ publish 실패 시 기존 산출물 복구를 제공한다.
 공개 CLI dispatch는 autoresearch/jobs/action_log.py, KPO resource 설정은
 SKYAHO/Autoresearch-airflow가 소유한다.
 """
+import hashlib
 import json
 import logging
 import math
@@ -229,6 +230,7 @@ EVENT_LOG_PARQUET_SCHEMA = pa.schema(
         pa.field("user_id", pa.string()),
         pa.field("event_type", pa.string()),
         pa.field("video_id", pa.string()),
+        pa.field("slate_id", pa.string()),
         pa.field("watch_time_sec", pa.int64()),
         pa.field("rank", pa.int64()),
         pa.field("source", pa.string()),
@@ -251,12 +253,13 @@ _PARQUET_TARGET_ROW_GROUP_ROWS = 50_000
 
 # additive 확장 컬럼 — 이 컬럼이 없는 legacy 파티션 스키마도 event log 계약에서
 # 관용한다 (#221). event log 스키마 계약의 단일 출처로 이곳에 둔다.
-OPTIONAL_ADDITIVE_COLUMNS = frozenset({"exposure_source"})
+OPTIONAL_ADDITIVE_COLUMNS = frozenset({"exposure_source", "slate_id"})
 
 ACTION_LOG_DRAFT_PARQUET_SCHEMA = pa.schema(
     [
         pa.field("user_id", pa.string()),
         pa.field("video_id", pa.string()),
+        pa.field("slate_id", pa.string()),
         pa.field("click_propensity", pa.float64()),
         pa.field("watch_fraction", pa.float64()),
         pa.field("would_like", pa.bool_()),
@@ -304,6 +307,8 @@ def _build_user_drafts(
     virtual_user: dict,
     candidates: list[dict],
     raw_text: str,
+    *,
+    slate_id: str | None = None,
 ) -> list[ImpressionDraft]:
     """LLM raw judgments를 파싱해 후보별 ImpressionDraft를 만든다.
 
@@ -352,6 +357,7 @@ def _build_user_drafts(
             ImpressionDraft(
                 user_id=user_id,
                 video_id=vid,
+                slate_id=slate_id,
                 click_propensity=prop,
                 watch_fraction=frac,
                 would_like=derive_would_like(prop, frac),
@@ -365,6 +371,8 @@ def _try_build_user_drafts(
     virtual_user: dict,
     candidates: list[dict],
     raw_text: str,
+    *,
+    slate_id: str | None = None,
 ) -> tuple[
     list[ImpressionDraft] | None,
     Literal["invalid_json", "schema_fail"] | None,
@@ -373,7 +381,16 @@ def _try_build_user_drafts(
     """raw 응답을 draft로 파싱하고 격리 분류를 값으로 반환한다."""
 
     try:
-        return _build_user_drafts(virtual_user, candidates, raw_text), None, None
+        return (
+            _build_user_drafts(
+                virtual_user,
+                candidates,
+                raw_text,
+                slate_id=slate_id,
+            ),
+            None,
+            None,
+        )
     except json.JSONDecodeError as exc:
         return None, "invalid_json", exc
     except (
@@ -836,6 +853,41 @@ def attach_exposure_tags(
     return tagged
 
 
+def _assign_slate_ids(
+    drafts: list[ImpressionDraft],
+    request: EventGenerationRequest,
+) -> list[ImpressionDraft]:
+    """한 사용자 후보 묶음에 결정적인 slate_id를 부여한다.
+
+    현재 action log 생성 계약은 사용자마다 한 후보 묶음을 만든다. ID에는 원본
+    사용자 값을 직접 넣지 않고 요청 날짜·seed·후보 목록의 hash만 사용한다.
+    """
+
+    grouped: dict[str, list[ImpressionDraft]] = defaultdict(list)
+    for draft in drafts:
+        grouped[draft.user_id].append(draft)
+
+    partition_date = request.history_end.astimezone(_KST).strftime("%Y%m%d")
+    tagged: list[ImpressionDraft] = []
+    for user_id, user_drafts in grouped.items():
+        identity = "|".join(
+            [
+                "slate-v1",
+                partition_date,
+                str(request.seed),
+                user_id,
+                *sorted(draft.video_id for draft in user_drafts),
+            ]
+        )
+        digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+        slate_id = f"slate_{partition_date}_{digest}"
+        tagged.extend(
+            draft.model_copy(update={"slate_id": slate_id})
+            for draft in user_drafts
+        )
+    return tagged
+
+
 def _exposure_metadata_from_drafts(
     drafts: list[ImpressionDraft],
 ) -> dict[tuple[str, str], ExposureMetadata]:
@@ -888,7 +940,7 @@ def _expand_events(
     events: list[EventLog] = []
     seq = event_id_sequence_start
 
-    def _emit(timestamp, user_id, event_type, video_id, watch=None):
+    def _emit(timestamp, user_id, event_type, video_id, watch=None, slate_id=None):
         nonlocal seq
         meta = metadata.get((user_id, video_id)) if metadata else None
         events.append(
@@ -898,6 +950,7 @@ def _expand_events(
                 user_id=user_id,
                 event_type=event_type,
                 video_id=video_id,
+                slate_id=slate_id,
                 watch_time_sec=watch,
                 rank=meta.rank if meta else None,
                 source=source,
@@ -928,18 +981,31 @@ def _expand_events(
                 minutes=urng.randint(0, 59),
                 seconds=urng.randint(0, 59),
             )
-            _emit(impression_ts, user_id, "impression", draft.video_id)
+            _emit(
+                impression_ts,
+                user_id,
+                "impression",
+                draft.video_id,
+                slate_id=draft.slate_id,
+            )
             if idx not in clicked:
                 continue
             click_ts = impression_ts + timedelta(seconds=urng.randint(1, _CLICK_DELAY_MAX_SEC))
-            _emit(click_ts, user_id, "click", draft.video_id)
+            _emit(click_ts, user_id, "click", draft.video_id, slate_id=draft.slate_id)
             watch = max(1, round(draft.watch_fraction * draft.duration_sec))
             view_ts = click_ts + timedelta(seconds=urng.randint(1, _VIEW_DELAY_MAX_SEC))
-            _emit(view_ts, user_id, "view", draft.video_id, watch=watch)
+            _emit(
+                view_ts,
+                user_id,
+                "view",
+                draft.video_id,
+                watch=watch,
+                slate_id=draft.slate_id,
+            )
             last_ts = view_ts
             if draft.would_like:
                 like_ts = view_ts + timedelta(seconds=urng.randint(1, max(2, watch)))
-                _emit(like_ts, user_id, "like", draft.video_id)
+                _emit(like_ts, user_id, "like", draft.video_id, slate_id=draft.slate_id)
                 last_ts = like_ts
             # window 불변식 가드: 세션 마지막 이벤트도 history_end를 넘지 않는다.
             # _MIN_IMPRESSION_HOURS가 _MAX_DURATION 기반이라 성립하며, 이 결합이 깨지면
@@ -963,6 +1029,7 @@ def _event_rows(batch: EventLogBatch, model_name: str) -> list[dict]:
                 "user_id": event.user_id,
                 "event_type": event.event_type,
                 "video_id": event.video_id,
+                "slate_id": event.slate_id,
                 "watch_time_sec": event.watch_time_sec,
                 "rank": event.rank,
                 "source": event.source,
@@ -993,6 +1060,7 @@ def _event_spool_rows(
             "user_id": event.user_id,
             "event_type": event.event_type,
             "video_id": event.video_id,
+            "slate_id": event.slate_id,
             "watch_time_sec": event.watch_time_sec,
             "rank": event.rank,
             "source": event.source,
@@ -1605,6 +1673,7 @@ def expand_action_log_drafts(
 ) -> EventGenerationResult:
     """전체 draft에 유저별 커트라인 클릭 선정과 long event 확장을 적용한다."""
 
+    drafts = _assign_slate_ids(drafts, request)
     clicked = select_clicks_per_slate(drafts, request.click_threshold)
     events = _expand_events(drafts, clicked, request)
 
@@ -2022,6 +2091,8 @@ def generate_action_log_single(
                     )
                     drafts = attach_exposure_tags(drafts, user_exposure_metadata)
                     user_exposure_metadata.clear()
+
+                drafts = _assign_slate_ids(drafts, request)
 
                 clicked_drafts = select_clicks_per_slate(
                     drafts,

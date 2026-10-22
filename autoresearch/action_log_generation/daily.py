@@ -67,7 +67,7 @@ from autoresearch.action_log_generation.video_source import load_video_records
 
 
 _KST = ZoneInfo("Asia/Seoul")
-# 브랜치 이전에 기록된 legacy final은 OPTIONAL_ADDITIVE_COLUMNS가 없다 (#221).
+# 브랜치 이전에 기록된 legacy final은 additive column이 없다 (#221).
 # 품질잡과 일관되게 재실행 skip 검증에서 이 legacy 스키마도 관용한다.
 _LEGACY_EVENT_LOG_PARQUET_SCHEMA = pa.schema(
     [
@@ -75,6 +75,13 @@ _LEGACY_EVENT_LOG_PARQUET_SCHEMA = pa.schema(
         for field in EVENT_LOG_PARQUET_SCHEMA
         if field.name not in OPTIONAL_ADDITIVE_COLUMNS
     ]
+)
+# slate_id 도입 직전의 최신 파티션은 exposure_source를 포함할 수 있다.
+_PRE_SLATE_EVENT_LOG_PARQUET_SCHEMA = pa.schema(
+    [field for field in EVENT_LOG_PARQUET_SCHEMA if field.name != "slate_id"]
+)
+_PRE_EXPOSURE_EVENT_LOG_PARQUET_SCHEMA = pa.schema(
+    [field for field in EVENT_LOG_PARQUET_SCHEMA if field.name != "exposure_source"]
 )
 _PARTITION_FILE = "part-0.parquet"
 _QUARANTINE_FILE = "quarantine.jsonl"
@@ -359,6 +366,8 @@ def _validate_existing_final(
         raise ValueError("existing final parquet is unreadable") from exc
     if not (
         schema.equals(EVENT_LOG_PARQUET_SCHEMA)
+        or schema.equals(_PRE_SLATE_EVENT_LOG_PARQUET_SCHEMA)
+        or schema.equals(_PRE_EXPOSURE_EVENT_LOG_PARQUET_SCHEMA)
         or schema.equals(_LEGACY_EVENT_LOG_PARQUET_SCHEMA)
     ):
         raise ValueError("existing final parquet schema does not match action log contract")

@@ -193,10 +193,38 @@ def test_parquet_matches_events(tmp_path):
     assert len(warehouse) == result.summary["total_events"]
     assert set(warehouse[0]) == {
         "event_id", "event_timestamp", "user_id", "event_type",
-        "video_id", "watch_time_sec", "rank", "source",
+        "video_id", "slate_id", "watch_time_sec", "rank", "source",
         "policy", "ctr_score", "is_exploration", "policy_version",
         "exposure_source",
     }
+
+
+def test_generated_events_share_deterministic_slate_id_per_user(tmp_path):
+    users, videos = _fixture_users(2), build_fixture_video_records(12)
+    first = generate_action_log_batch(
+        _request(tmp_path / "first", candidates_per_user=6),
+        users,
+        videos,
+        RuleBasedActionLogGenerator(),
+    )
+    second = generate_action_log_batch(
+        _request(tmp_path / "second", candidates_per_user=6),
+        users,
+        videos,
+        RuleBasedActionLogGenerator(),
+    )
+
+    def ids_by_user(events):
+        result = {}
+        for event in events:
+            result.setdefault(event.user_id, set()).add(event.slate_id)
+        return result
+
+    first_ids = ids_by_user(first.batch.events)
+    second_ids = ids_by_user(second.batch.events)
+    assert all(len(ids) == 1 and None not in ids for ids in first_ids.values())
+    assert len({next(iter(ids)) for ids in first_ids.values()}) == len(users)
+    assert first_ids == second_ids
 
 
 def test_streaming_writer_finalizes_completion_time_and_bounded_row_groups(
@@ -3495,7 +3523,7 @@ def test_draft_exposure_tags_roundtrip_parquet(tmp_path):
 def test_legacy_draft_parquet_without_tag_columns_reads_untagged(tmp_path):
     legacy_fields = [
         f for f in ACTION_LOG_DRAFT_PARQUET_SCHEMA
-        if f.name not in ("exposure_source", "exposure_rank",
+        if f.name not in ("slate_id", "exposure_source", "exposure_rank",
                           "exposure_ctr_score", "policy_version")
     ]
     row = {"user_id": "u1", "video_id": "v1", "click_propensity": 0.9,
