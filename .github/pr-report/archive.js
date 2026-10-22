@@ -3,6 +3,15 @@
 var CATEGORY_SOURCES = [
   { key: "application", label: "Application", repoFull: "Autoresearch", light: "#1f7a5c", dark: "#4fbf95" },
   {
+    key: "upstream_application",
+    label: "Upstream Application",
+    repoFull: "SKYAHO/Autoresearch",
+    light: "#2f6f9f",
+    dark: "#76b6e8",
+    url: "https://skyaho.github.io/Autoresearch/archive.json",
+    base: "https://skyaho.github.io/Autoresearch/",
+  },
+  {
     key: "airflow",
     label: "Airflow",
     repoFull: "Autoresearch-airflow",
