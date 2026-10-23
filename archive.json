@@ -1,7 +1,19 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-23T05:49:12Z",
+  "generated_at": "2026-10-23T05:52:28Z",
   "reports": [
+    {
+      "number": 8,
+      "title": "feat: 평가 slate snapshot을 생성한다",
+      "author": "hyeongyu-data",
+      "merged_at": "2026-10-23T05:52:18Z",
+      "summary_ko": [
+        "평가 slate와 봉인 labels를 분리하는 스냅샷 빌더를 추가했다.",
+        "slate_id 원천 컬럼을 사용해 검증/홀드아웃 분할과 click 귀속을 구현한다.",
+        "결과를 content-addressed write-once 경로에 게시하고 manifest를 기록한다."
+      ],
+      "report_url": "pr/8/"
+    },
     {
       "number": 6,
       "title": "feat: action log에 slate_id를 기록한다",
