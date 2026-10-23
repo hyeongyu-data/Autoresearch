@@ -150,3 +150,17 @@ BQ는 GCS 전체 재적재 산출물이므로 **GCS만 바로잡으면 된다.**
 진행한다 — BETWEEN 빌드가 머지되기 전에 트레일링 파티션을 지우면 그 사이
 빌드가 전부 0-스냅샷이 된다. 상세 작업 분해는 별도 plan
 (`docs/plans/2026-07-24-action-log-slice-semantics.md`)에서 다룬다.
+
+## Research Harness 노출 묶음 식별자 확장 (2026-10-22)
+
+Research Harness의 ranking 평가가 노출 묶음 단위로 동작하도록 새 action log에는
+optional `slate_id`를 기록한다.
+
+- 같은 사용자 후보 묶음의 모든 이벤트는 같은 `slate_id`를 공유한다.
+- ID는 `slate_<KST 날짜>_<sha256 앞 24자리>` 형식이며 사용자 원문을 포함하지 않는다.
+- 기존 `slate_id` 없는 파티션은 하위 호환을 위해 계속 읽는다.
+- `slate_id_cutover_date` 이전 파티션은 평가 snapshot에서 제외한다.
+- cutover 이후 선택된 파티션에 null `slate_id`가 있으면 묶음을 추정하지 않고 실패시킨다.
+
+이 확장은 기존 `event_id` 형식과 파티션 날짜 계약을 바꾸지 않는다. 과거 파티션의
+`slate_id`를 추정하거나 재작성하는 데이터 마이그레이션은 포함하지 않는다.
