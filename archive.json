@@ -1,7 +1,19 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-23T06:47:57Z",
+  "generated_at": "2026-10-23T06:56:58Z",
   "reports": [
+    {
+      "number": 12,
+      "title": "feat: 리랭킹 지표 순수 함수를 추가한다",
+      "author": "hyeongyu-data",
+      "merged_at": "2026-10-23T06:56:50Z",
+      "summary_ko": [
+        "리랭킹 slate 내부에서 NDCG@k와 Recall@k를 계산하는 순수 함수 모듈을 추가했습니다.",
+        "0-click slate는 지표에서 제외되며 coverage 부족 상태를 숨기지 않습니다.",
+        "결정적 score/video_id 정렬과 경계값 검증 테스트를 포함했습니다."
+      ],
+      "report_url": "pr/12/"
+    },
     {
       "number": 10,
       "title": "feat: Claude 리뷰를 OpenRouter로 전환한다",
