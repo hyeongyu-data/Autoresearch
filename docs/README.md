@@ -184,3 +184,4 @@
 
 완료된 spec/plan과 과거 리포트(중간발표, QA·실증 테스트 리포트)는
 [`archive/`](archive/)에 있습니다. 역사적 기록이므로 갱신하지 않습니다.
+- [EvaluationSlateSnapshot 계약](specs/2026-08-14-paper-grounded-autonomous-ml-research-harness.md#16-evaluationslatesnapshot-구현-계약-task-1) — action log를 평가 slate와 봉인 labels로 분리하는 Task 1 계약

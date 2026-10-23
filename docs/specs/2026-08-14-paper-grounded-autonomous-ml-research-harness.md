@@ -883,3 +883,16 @@ MVP 이후에는 Paper Discovery와 PaperCard → Capability Matcher와 Experime
 
 구현 착수 전 기존 관련 spec과의 대체·확장 관계를 이슈에서 확정하고, 저장소 workflow에
 따라 이슈에서 생성한 브랜치와 구현 plan을 사용한다.
+
+## 16. EvaluationSlateSnapshot 구현 계약 (Task 1)
+
+`autoresearch.research_harness.slate.build_evaluation_slate_snapshot`은 Task 1-0에서
+생성한 `slate_id`를 그대로 사용해 평가 출력일 `[T, T_end]`의 slate와 봉인 labels를
+분리한다. click 귀속 후보는 `[T, T_end + 1]`을 읽지만 출력 slate는 `[T, T_end]`로
+제한하며, `T_end + 1` 파티션이 없으면 fail-closed한다. `slate_id_cutover_date` 이후
+impression의 null 값은 추정하지 않고 거부한다.
+
+결과는 사용자 해시의 고정 bucket으로 validation 80%와 final holdout 20%로 나뉜다.
+slate parquet에는 `clicked`를 기록하지 않으며 labels parquet에만 기록한다. 두 split은
+동일한 `evaluation_id`와 join key를 공유하고, 결과는 `by-hash/<evaluation_id>/` 아래
+write-once로 게시한다. 이 빌더는 candidate 실행·지표 계산·Judge를 담당하지 않는다.
