@@ -720,3 +720,11 @@ slate(Task 1)가 모두 필요하기 때문이다.
 - [ ] `ResearchDomain` ABC와 `YouTubeCTRDomain`이 구현되고 Controller가 이 interface를 통해
       snapshot·검증·평가·비교를 호출한다
 - [ ] 최종 REPORT의 대표 수치는 final holdout 결과다
+
+### Task 2a 구현 메모
+
+`autoresearch/research_harness/ranking_metrics.py`는 봉인 slate의 이진 click relevance를
+결정적으로 정렬해 NDCG@k·Recall@k를 계산한다. 0-click slate는 `None`으로 제외하고,
+`RankingMetricSummary`가 유효 slate 수·전체 수·coverage와
+`insufficient_metric_coverage` 사유를 함께 제공한다. 기존 평가 모듈과 Judge/Controller는
+변경하지 않는다.
