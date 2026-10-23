@@ -233,6 +233,10 @@ Closes #45
   트리거에서 제외됩니다 (PR 이해 리포트도 동일). 코드와 문서가 섞인 PR은
   종전대로 실행되며, 문서 PR도 `/claude-review`·`/claude-report` 댓글로
   수동 실행할 수 있습니다.
+- 인증은 GitHub Actions의 `OPENROUTER_API_KEY` secret을 사용하고
+  `ANTHROPIC_BASE_URL=https://openrouter.ai/api`로 라우팅합니다.
+  `ANTHROPIC_API_KEY`는 빈 값으로 고정하며, 현재 리뷰 모델은
+  `poolside/laguna-s-2.1:free`입니다. 유료 fallback은 설정하지 않습니다.
 
 ## Branch protection
 
