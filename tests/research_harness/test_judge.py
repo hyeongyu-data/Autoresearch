@@ -103,3 +103,49 @@ def test_judge_rejects_duplicate_manifest_id(tmp_path: Path) -> None:
             JudgePolicy(primary_metric="roc_auc"),
             baseline_metrics=(("roc_auc", 0.5),),
         )
+
+
+def _sealed_manifest() -> EvaluationManifest:
+    labels = []
+    for index in range(30):
+        labels.extend((("eval", f"s{index}", f"a{index}", 1.0), ("eval", f"s{index}", f"b{index}", 0.0)))
+    return EvaluationManifest(labels=tuple(labels), dataset_fingerprint="e" * 64)
+
+
+def test_sealed_judge_ranking_metrics_and_sigma_decision(tmp_path: Path) -> None:
+    path = tmp_path / "predictions.csv"
+    lines = ["evaluation_id,slate_id,video_id,score"]
+    for index in range(30):
+        lines.extend((f"eval,s{index},a{index},0.9", f"eval,s{index},b{index},0.1"))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    result = judge_predictions(
+        path,
+        _sealed_manifest(),
+        JudgePolicy(
+            primary_metric="ndcg_at_10",
+            sigma_by_metric=(
+                ("ndcg_at_10", 0.1),
+                ("recall_at_10", 0.1),
+                ("ndcg_at_24", 0.1),
+            ),
+        ),
+        baseline_metrics=(("ndcg_at_10", 0.0), ("recall_at_10", 0.0), ("ndcg_at_24", 0.0)),
+    )
+    assert result.decision == "promote"
+    assert dict(result.metrics)["ndcg_at_10"] == 1.0
+
+
+def test_sealed_judge_rejects_wrong_schema_and_out_of_range_score(tmp_path: Path) -> None:
+    path = tmp_path / "predictions.csv"
+    path.write_text("evaluation_id,slate_id,video_id,score\neval,s1,a,2\n", encoding="utf-8")
+    with pytest.raises(JudgeError, match="invalid_predictions"):
+        judge_predictions(path, _sealed_manifest(), JudgePolicy(primary_metric="ndcg_at_10"))
+
+
+def test_judge_rejects_prediction_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "real.csv"
+    _write_predictions(target, "a,0.9\nb,0.1\n")
+    link = tmp_path / "predictions.csv"
+    link.symlink_to(target)
+    with pytest.raises(JudgeError, match="invalid_predictions"):
+        judge_predictions(link, _manifest(), JudgePolicy(primary_metric="roc_auc"), baseline_metrics=(("roc_auc", 0.5),))
