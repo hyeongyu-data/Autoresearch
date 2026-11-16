@@ -13,6 +13,11 @@ on:
       - "**.md"
       - "docs/**"
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "리뷰할 PR 번호"
+        required: true
+        type: number
   issue_comment:
     types: [created]
 
@@ -49,7 +54,7 @@ jobs:
             You are an expert code reviewer conducting a thorough review of a pull request.
 
             Repository: ${{ github.repository }}
-            Pull request number: ${{ github.event.pull_request.number || github.event.issue.number }}
+            Pull request number: ${{ github.event.inputs.pr_number || github.event.pull_request.number || github.event.issue.number }}
 
             Provide constructive feedback on code quality, potential bugs, and improvements.
 
@@ -65,7 +70,7 @@ jobs:
             - The author is expected to answer in the same inline thread, validate the answer with a local agent if needed, and then resolve the thread.
 
             At the end of your summary comment, include this line so readers can find the auto-generated comprehension report (stage 1-2 of the PR understanding system):
-            "이 PR의 파이프라인 시각화·중요도순 변경 분석은 PR 이해 리포트를 참고하십시오: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr/${{ github.event.pull_request.number || github.event.issue.number }}/"
+            "이 PR의 파이프라인 시각화·중요도순 변경 분석은 PR 이해 리포트를 참고하십시오: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr/${{ github.event.inputs.pr_number || github.event.pull_request.number || github.event.issue.number }}/"
           claude_args: |
             --model "cohere/north-mini-code:free"
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

@@ -227,6 +227,8 @@ Closes #45
 - 피드백 반영 후 재리뷰가 필요하면 PR conversation에 `/claude-review`
   댓글을 작성합니다. PR에서만 동작하며 일반 이슈 댓글에서는 실행되지
   않습니다.
+- 모델·workflow 변경을 머지 전에 검증할 때는 `workflow_dispatch`의 필수
+  `pr_number` 입력으로 PR 번호를 지정해 해당 브랜치의 workflow를 실행합니다.
 - push마다 자동 재리뷰하는 `synchronize` 이벤트는 비용과 노이즈를
   줄이기 위해 사용하지 않습니다.
 - 변경 파일이 전부 문서(`**.md`, `docs/**`)인 PR은 같은 이유로 자동
