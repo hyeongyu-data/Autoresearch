@@ -728,3 +728,10 @@ slate(Task 1)가 모두 필요하기 때문이다.
 `RankingMetricSummary`가 유효 slate 수·전체 수·coverage와
 `insufficient_metric_coverage` 사유를 함께 제공한다. 기존 평가 모듈과 Judge/Controller는
 변경하지 않는다.
+
+### Task 2b 구현 메모
+
+`judge.py`는 candidate predictions를 `O_NOFOLLOW` FD에서 제한된 사본으로 회수하고, sealed
+`evaluation_id,slate_id,video_id,score` 계약을 검증한다. Task 2a ranking 지표와 확률
+LogLoss/Brier를 계산하며, 주 지표 2σ 개선과 guardrail -1σ 하락 기준을 주입받아
+`promote/discard/revise`를 반환한다. 기존 2열 Judge 입력은 호환 유지한다.
